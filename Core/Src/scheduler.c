@@ -15,8 +15,6 @@ void SCH_Init(void) {
 		SCH_Delete_Task(i);
 	}
 	Error_code_G = 0;
-//	Timer_init();
-//	Watchdog_init();
 }
 
 unsigned char SCH_Add_Task (void (*pFunction)() , uint32_t DELAY, uint32_t PERIOD){
@@ -63,8 +61,6 @@ void SCH_Dispatch_Tasks(void){
 			}
 		}
 	}
-//	SCH_Report_Status();
-//	SCH_Go_To_Sleep();
 }
 
 unsigned char SCH_Delete_Task(const uint8_t TASK_INDEX) {
