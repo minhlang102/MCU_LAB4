@@ -6,99 +6,102 @@
  */
 
 #include "scheduler.h"
-sTask SCH_tasks_G[SCH_MAX_TASKS];
-unsigned char Error_code_G;;
+
+#include "scheduler.h"
+#include "list.h"
+
+list my_list;
+int32_t TaskID_arr[SCH_MAX_TASK];
+uint32_t curID;
+uint8_t dispatch;
 
 void SCH_Init(void) {
-	unsigned char i;
-	for (i = 0; i<SCH_MAX_TASKS; i++) {
-		SCH_Delete_Task(i);
-	}
-	Error_code_G = 0;
+    sTask* tmp = my_list.head;
+    while (tmp != NULL)
+    {
+        SCH_Delete_Task(tmp->TaskID);
+    }
+    for (int32_t i=0; i<SCH_MAX_TASK; i++) {
+        TaskID_arr[i] = -1;
+    }
+    curID = 0;
+    dispatch = 0;
+    my_list.head = NULL;
+    my_list.tail = NULL;
+    my_list.size = 0;
 }
 
-unsigned char SCH_Add_Task (void (*pFunction)() , uint32_t DELAY, uint32_t PERIOD){
-	unsigned char Index = 0;
-	while ((SCH_tasks_G[Index].pTask != 0) && (Index < SCH_MAX_TASKS)) {
-		Index++;
-	}
-	if (Index == SCH_MAX_TASKS) {
-		Error_code_G = ERROR_SCH_TOO_MANY_TASKS;
-		return SCH_MAX_TASKS;
-	}
-	SCH_tasks_G[Index].pTask = pFunction;
-	SCH_tasks_G[Index].Delay = DELAY/CYCLE;
-	SCH_tasks_G[Index].Period = PERIOD/CYCLE;
-	SCH_tasks_G[Index].RunMe = 0;
+unsigned char SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD) {
+    uint32_t id_count = 0;
+	node *cur = my_list.head, *prev = NULL, *last = NULL;
 
-	return Index;
+    while (TaskID_arr[curID] != -1 && id_count < SCH_MAX_TASK)
+    {
+        curID = (curID+1)%SCH_MAX_TASK;
+        id_count++;
+    }
+
+    if (id_count == SCH_MAX_TASK) {
+        return SCH_MAX_TASK;
+    }
+
+    if (my_list.size == 0) {
+    	LIST_Add_Task(&my_list, pFunction, DELAY/CYCLE, PERIOD, curID, prev, cur);
+    } else {
+    	uint32_t sum = 0;
+    	while (DELAY >= sum + cur->data.DELAY && cur != NULL) {
+    		sum += cur->data.DELAY;
+    		prev = cur;
+    		cur = cur->next;
+    	}
+    	uint32_t DELAY_NEW = DELAY - sum;
+    	if (cur != NULL) {
+    		cur->data.DELAY -= DELAY_NEW;
+    	}
+    	LIST_Add_Task(&my_list, pFunction, DELAY_NEW/CYCLE, PERIOD, curID, prev, cur);
+    }
+
+    TaskID_arr[curID] = curID;
+    return curID;
 }
 
-void SCH_Update(void) {
-	unsigned char Index;
-	for (Index = 0; Index < SCH_MAX_TASKS; Index++) {
-		if (SCH_tasks_G[Index].pTask) {
-			if (SCH_tasks_G[Index].Delay == 0) {
-				SCH_tasks_G[Index].RunMe +=1 ;
-				if (SCH_tasks_G[Index].Period) {
-					SCH_tasks_G[Index].Delay = SCH_tasks_G[Index].Period;
-				}
-			} else {
-				SCH_tasks_G[Index].Delay--;
-			}
-		}
-	}
+unsigned char SCH_Delete_Task(uint32_t TaskID) {
+    if (TaskID_arr[TaskID] == -1) {
+        return SCH_MAX_TASK;
+    }
+    LIST_Delete_Head_Task(&my_list);
+    TaskID_arr[TaskID] = -1;
+    return TaskID;
 }
 
-void SCH_Dispatch_Tasks(void){
-	unsigned char Index;
-	for (Index = 0; Index < SCH_MAX_TASKS; Index++) {
-		if (SCH_tasks_G[Index].RunMe > 0) {
-			(*SCH_tasks_G[Index].pTask)();
-			SCH_tasks_G[Index].RunMe -= 1;
-			if (SCH_tasks_G[Index].Period == 0) {
-				SCH_Delete_Task(Index);
-			}
-		}
-	}
+void SCH_Update_Task() {
+    node* tmp = my_list.head;
+    if (tmp != NULL && dispatch == 0) {
+        if (tmp->data.DELAY != 0) {
+            tmp->data.DELAY--;
+        } else {
+        	dispatch = 1;
+        }
+    }
 }
 
-unsigned char SCH_Delete_Task(const uint8_t TASK_INDEX) {
-	unsigned char Return_code;
-	if (SCH_tasks_G[TASK_INDEX].pTask == 0) {
-		Error_code_G = ERROR_SCH_CANNOT_DELETE_TASK;
-		Return_code = RETURN_ERROR;
-	} else {
-		Return_code = RETURN_NORMAL;
-	}
-	SCH_tasks_G[TASK_INDEX].pTask = 0x0000;
-	SCH_tasks_G[TASK_INDEX].Delay = 0;
-	SCH_tasks_G[TASK_INDEX].Period = 0;
-	SCH_tasks_G[TASK_INDEX].RunMe = 0;
-	return Return_code;
-}
-
-void SCH_Report_Status(void) {
-#ifdef SCH_REPORT_ERRORS
-	if (Error_code_G != Last_error_code_G) {
-		Error_port = 255 - Error_code_G;
-		Last_error_code_G = Error_code_G;
-		if (Error_code_G != 0) {
-			Error_tick_count_G = 60000;
-		} else {
-			Error_tick_count_G = 0;
-		}
-	} else {
-		if (Error_tick_count_G != 0) {
-			if (--Error_tick_count_G == 0) {
-				Error_code_G = 0;
-			}
-		}
-	}
-#endif
-}
-
-void SCH_Go_To_Sleep() {
-
+void SCH_Dispatch_Task() {
+    node* tmp = my_list.head;
+    if (tmp->data.DELAY == 0 && tmp != NULL) {
+        (*tmp->data.pTask)();
+        if (tmp->data.PERIOD == 0) {
+            SCH_Delete_Task(tmp->data.TaskID);
+            return;
+        } else {
+            void (*pTask) (void) = tmp->data.pTask;
+            uint32_t DELAY = tmp->data.DELAY;
+            uint32_t PERIOD = tmp->data.PERIOD;
+            uint32_t TaskID = tmp->data.TaskID;
+            uint8_t RunMe = tmp->data.RunMe;
+            SCH_Delete_Task(tmp->data.TaskID);
+            SCH_Add_Task(pTask, PERIOD, PERIOD);
+        }
+        dispatch = 0;
+    }
 }
 

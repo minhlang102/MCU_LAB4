@@ -131,15 +131,15 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   SCH_Add_Task(blinkLed1, 0, 500);
-  SCH_Add_Task(blinkLed2, 5, 1000);
-  SCH_Add_Task(blinkLed3, 10, 1500);
-  SCH_Add_Task(blinkLed4, 15, 2000);
-  SCH_Add_Task(blinkLed5, 20, 2500);
+  SCH_Add_Task(blinkLed2, 10, 1000);
+  SCH_Add_Task(blinkLed3, 20, 1500);
+  SCH_Add_Task(blinkLed4, 35, 2000);
+  SCH_Add_Task(blinkLed5, 40, 2500);
   SCH_Add_Task(oneshot, 1000, 0);
   setTimer1(1000);
   while (1)
   {
-	  SCH_Dispatch_Tasks();
+	  SCH_Dispatch_Task();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -223,7 +223,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
-  CYCLE = 1/((8e6/(htim2.Init.Prescaler + 1))/htim2.Init.Period)*1000;
+//  CYCLE = 1/((8e6/(htim2.Init.Prescaler + 1))/htim2.Init.Period)*1000;
   /* USER CODE END TIM2_Init 2 */
 
 }
@@ -290,7 +290,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	SCH_Update();
+	SCH_Update_Task();
 	timerRun();
 ;}
 /* USER CODE END 4 */
