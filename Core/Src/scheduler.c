@@ -8,6 +8,7 @@
 #include "scheduler.h"
 sTask SCH_tasks_G[SCH_MAX_TASKS];
 unsigned char Error_code_G;;
+sTask* arr;
 
 void SCH_Init(void) {
 	unsigned char i;
